@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebAssembly Linear Regression</title>
+    <!-- Including Plotly.js library for plotting the regression chart -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* Style for the input fields and button */
+        input, button {
+            margin: 10px 0;
+            padding: 5px;
+            font-size: 16px;
+        }
+        /* Style for the regression result */
+        #regression {
+            font-weight: bold;
+            color: green;
+        }
+        /* Center the content */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <h1>Linear Regression Calculator</h1>
+    <!-- Input fields for X and Y values -->
+    <p>X Values: <input type="text" id="x_values" value="1,2,3"></p>
+    <p>Y Values: <input type="text" id="y_values" value="1,2,4"></p>
+    <!-- Button to trigger the regression calculation -->
+    <button onclick="calculateRegression()">Calculate Regression</button>
+    <!-- Display the regression result -->
+    <p>Regression: <span id="regression"></span></p>
+    <!-- Placeholder for the regression chart -->
+    <figure id="regressionChart" width="400" height="400"></figure>
+    
+    <script>
+        // Array to keep track of allocated structures
+        const structTracker = [];
+
+        // Function to create a structure and add it to the tracker
+        function createStruct(ptr) {
+            structTracker.push(ptr);
+            return ptr;
+        }
+
+        // Function to allocate memory for a structure in WebAssembly
+        function allocStruct(wasm, size) {
+            const ptr = wasm.malloc(size);
+            return createStruct(ptr);
+        }
+
+        // Function to free all allocated structures
+        function freeAll(wasm) {
+            while (structTracker.length > 0) {
+                wasm.free(structTracker.pop());
+            }
+        }
+
+        // Function to load the WebAssembly module
+        async function loadWasm() {
+            const response = await fetch('linear_regression.wasm');
+            const buffer = await response.arrayBuffer();
+            const wasmModule = await WebAssembly.instantiate(buffer);
+            return wasmModule.instance.exports;
+        }
+
+        // Function to perform linear regression using WebAssembly
+        async function performRegression(x_values, y_values) {
+            const wasm = await loadWasm();
+            const size = Math.min(x_values.length, y_values.length);
+
+            // Allocate memory for X and Y values in WebAssembly
+            const x_ptr = allocStruct(wasm, size * Int32Array.BYTES_PER_ELEMENT);
+            const y_ptr = allocStruct(wasm, size * Int32Array.BYTES_PER_ELEMENT);
+
+            // Create typed arrays for X and Y values
+            const x_array = new Int32Array(wasm.memory.buffer, x_ptr, size);
+            x_array.set(x_values.slice(0, size));
+            const y_array = new Int32Array(wasm.memory.buffer, y_ptr, size);
+            y_array.set(y_values.slice(0, size));
+
+            // Allocate memory for alpha and beta (regression coefficients)
+            const alpha_ptr = allocStruct(wasm, size * 64);
+            const beta_ptr = allocStruct(wasm, size * 64);
+
+            // Perform linear regression in WebAssembly
+            wasm.linear_regression(x_ptr, y_ptr, size, alpha_ptr, beta_ptr);
+
+            // Retrieve the regression coefficients from WebAssembly memory
+            const alpha = new Float64Array(wasm.memory.buffer, alpha_ptr, 1)[0];
+            const beta = new Float64Array(wasm.memory.buffer, beta_ptr, 1)[0];
+
+            // Free all allocated structures
+            freeAll(wasm);
+
+            return { alpha, beta };
+        }
+
+        // Function to calculate the regression and update the UI
+        async function calculateRegression() {
+            // Get X and Y values from input fields
+            const x_values = document.getElementById('x_values').value.split(',').map(Number);
+            const y_values = document.getElementById('y_values').value.split(',').map(Number);
+
+            // Check if X and Y arrays have the same length
+            if (x_values.length !== y_values.length) {
+                alert('X and Y arrays must have the same length');
+                return;
+            }
+
+            // Perform regression and get the result
+            const result = await performRegression(x_values, y_values);
+
+            // Update the regression result in the UI
+            document.getElementById('regression').textContent = `y = ${result.beta} * x + ${result.alpha}`;
+
+            // Plot the regression chart
+            plotRegression(x_values, y_values, result.alpha, result.beta);
+        }
+
+        // Function to plot the regression chart using Plotly.js
+        function plotRegression(xValues, yValues, alpha, beta) {
+            // Calculate predicted Y values based on the regression line
+            const yPred = xValues.map(x => alpha + beta * x);
+
+            // Data for the plot: original data points and regression line
+            const data = [{
+                x: xValues,
+                y: yValues,
+                mode: 'markers',
+                name: 'Data Points'
+            }, {
+                x: xValues,
+                y: yPred,
+                mode: 'lines',
+                name: 'Regression Line'
+            }];
+
+            // Layout for the plot
+            const layout = {
+                title: 'Linear Regression',
+                xaxis: { title: 'X' },
+                yaxis: { title: 'Y' }
+            };
+
+            // Create the plot in the specified figure element
+            Plotly.newPlot('regressionChart', data, layout);
+        }
+        calculateRegression();
+    </script>
+</body>
+</html>

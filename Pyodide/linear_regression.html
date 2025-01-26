@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pyodide Linear Regression</title>
+    <!-- Load Pyodide library -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.18.1/full/pyodide.js"></script>
+    <!-- Load Plotly.js library for plotting the regression chart -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* Style for the loading icon */
+        #loading {
+            display: none;
+            font-size: 24px;
+            color: blue;
+        }
+        /* Style for the input fields and button */
+        input, button {
+            margin: 10px 0;
+            padding: 5px;
+            font-size: 16px;
+        }
+        /* Style for the regression result */
+        #regression {
+            font-weight: bold;
+            color: green;
+        }
+        /* Center the content */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pyodide Linear Regression Calculator</h1>
+    <!-- Input fields for X and Y values -->
+    <p>X Values: <input type="text" id="x_values" value="1,2,3"></p>
+    <p>Y Values: <input type="text" id="y_values" value="1,2,4"></p>
+    <!-- Button to trigger the regression calculation -->
+    <button id="run">Calculate Regression</button>
+    <!-- Display the regression result -->
+    <p>Regression: <span id="regression"></span></p>
+    <!-- Placeholder for the regression chart -->
+    <figure id="regressionChart" width="400" height="400"></figure>
+    <!-- Loading section with progress bar -->
+    <section id="loading">
+        Loading Pyodide
+        <progress id="progress" max="100" value="0"></progress>
+    </section>
+
+    <script>
+        {
+            // Initialize Pyodide and progress bar elements
+            pyodide = null;
+            progress = document.getElementById('progress');
+
+            // Function to update progress bar while loading packages
+            async function prog(max, func) {
+                pInterval = setInterval(() => { if (progress.value < max) progress.value += 1}, 100);
+                const result = await func();
+                clearInterval(pInterval);
+                progress.value = max;
+                return result;
+            }
+
+            // Function to load Pyodide and SciPy package
+            async function loadPyodideAndPackages() {
+                progress.value = 0;
+                progress.parentElement.style.display = "block";
+
+                // Load Pyodide
+                pyodide = await prog(50, () => {
+                    return loadPyodide({
+                        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.18.1/full/"
+                    });
+                });
+
+                // Load SciPy package
+                await prog(100, () => pyodide.loadPackage('scipy'));
+            }
+
+            // Event listener for the "Calculate Regression" button
+            run = document.getElementById("run");
+            run.addEventListener("click", async function() {
+                if (pyodide === null) await loadPyodideAndPackages();
+
+                // Get X and Y values from input fields
+                const x_values = document.getElementById('x_values').value.split(',').map(Number);
+                const y_values = document.getElementById('y_values').value.split(',').map(Number);
+
+                // Check if X and Y arrays have the same length
+                if (x_values.length !== y_values.length) {
+                    alert('X and Y arrays must have the same length');
+                    return;
+                }
+
+                // Python code for linear regression
+                const pythonCode = `
+                import numpy as np
+                from scipy import stats
+
+                # Sample data
+                x = np.array([${x_values}])
+                y = np.array([${y_values}])
+
+                # Perform linear regression
+                beta, alpha, r_value, p_value, std_err = stats.linregress(x, y)
+
+                alpha, beta
+                `;
+                // Run the Python code and get the regression coefficients
+                const [alpha, beta] = await pyodide.runPythonAsync(pythonCode);
+
+                // Hide the loading section
+                progress.parentElement.style.display = "none";
+
+                // Display the regression result
+                document.getElementById('regression').textContent = `y = ${beta} * x + ${alpha}`;
+
+                // Plot the regression chart
+                plotRegression(x_values, y_values, alpha, beta);
+            });
+        }
+
+        // Function to plot the regression chart using Plotly.js
+        function plotRegression(xValues, yValues, alpha, beta) {
+            // Calculate predicted Y values based on the regression line
+            const yPred = xValues.map(x => alpha + beta * x);
+
+            // Data for the plot: original data points and regression line
+            const data = [{
+                x: xValues,
+                y: yValues,
+                mode: 'markers',
+                name: 'Data Points'
+            }, {
+                x: xValues,
+                y: yPred,
+                mode: 'lines',
+                name: 'Regression Line'
+            }];
+
+            // Layout for the plot
+            const layout = {
+                title: 'Linear Regression',
+                xaxis: { title: 'X' },
+                yaxis: { title: 'Y' }
+            };
+
+            // Create the plot in the specified figure element
+            Plotly.newPlot('regressionChart', data, layout);
+        }
+    </script>
+</body>
+</html>
