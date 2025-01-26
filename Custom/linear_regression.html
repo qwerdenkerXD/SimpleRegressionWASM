@@ -42,16 +42,11 @@
         // Array to keep track of allocated structures
         const structTracker = [];
 
-        // Function to create a structure and add it to the tracker
-        function createStruct(ptr) {
-            structTracker.push(ptr);
-            return ptr;
-        }
-
         // Function to allocate memory for a structure in WebAssembly
         function allocStruct(wasm, size) {
             const ptr = wasm.malloc(size);
-            return createStruct(ptr);
+            structTracker.push(ptr);
+            return ptr;
         }
 
         // Function to free all allocated structures

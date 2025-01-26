@@ -1,7 +1,7 @@
 # Simple Linear Regression Example for WebAssembly
 
 ## Using Pyodide
-Pyodide is a WebAssembly (Wasm) based project that brings the Python runtime to the browser. It supports many packages, including SciPy and NumPy. To see the Pyodide-based approach for performing linear regression on data points, check out the [Pyodide example](./Pyodide). Simply open the included [linear_regression.html](./Pyodide).
+Pyodide is a WebAssembly (Wasm) based project that brings the Python runtime to the browser. It supports many packages, including SciPy and NumPy. To see the Pyodide-based approach for performing linear regression on data points, check out the [Pyodide example](./Pyodide). Simply open the included [linear_regression.html](./Pyodide/linear_regression.html).
 
 ## Using Custom Implementation
 You can implement the calculation of linear regression yourself, compile it to WebAssembly, and include it in your web page. To see a custom approach for performing linear regression on data points, check out the [Custom example](./Custom).
